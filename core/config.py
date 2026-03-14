@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """应用配置，从环境变量加载。"""
+from pathlib import Path
 from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +18,8 @@ class Settings(BaseSettings):
     iflow_ws_url: str = "ws://localhost:8090/acp"
     # 启动网关时是否自动启动 iFlow 进程（手动模式，同 iflow --experimental-acp --port N）
     iflow_auto_start: bool = True
+    # 默认工作区目录名，位于用户目录下；不设则用 .iflowagentworkspace
+    iflow_workspace_dir_name: str = ".iflowagentworkspace"
     host: str = "0.0.0.0"
     port: int = 8000
     session_store_url: str = ""
@@ -51,6 +54,11 @@ class Settings(BaseSettings):
         except Exception:
             pass
         return 8090
+
+    def iflow_default_workspace_path(self) -> str:
+        """默认工作目录：用户目录下与 iflow_workspace_dir_name 同名的目录（绝对路径）。"""
+        path = Path.home() / self.iflow_workspace_dir_name.strip() or ".iflowagentworkspace"
+        return str(path.resolve())
 
 
 settings = Settings()

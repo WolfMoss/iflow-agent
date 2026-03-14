@@ -91,8 +91,8 @@ iflow-agent/
 
 ### app/services/chat_service.py
 
-- **职责**: 聊天业务。
-- **逻辑**: `ensure_session` 获取或创建会话；`stream_reply` 委托 `iflow_bridge.stream_chat` 并逐条 yield 事件。
+- **职责**: 聊天业务与会话解析。
+- **逻辑**: `ensure_session` 获取或创建会话（渠道未传 session_id 时先查 override，再回退到稳定 id）；`ensure_new_session` 用于 `/new` 新建并覆盖当前会话；`stream_reply` 委托 `iflow_bridge.stream_chat` 并逐条 yield 事件。详见下方「会话（Session）与记忆」。
 
 ### channels/base.py
 
@@ -154,6 +154,27 @@ iflow-agent/
 
 **部署到公网时（可选）：** 若将服务部署到有域名的服务器，可设置 `TELEGRAM_USE_WEBHOOK=true` 并配置 Telegram Webhook（`setWebhook` 指向 `https://你的域名/channels/telegram`），由 Telegram 主动推送消息，此时不再运行 Long Polling。
 
+## 会话（Session）与记忆
+
+- **网关只做会话路由，不实现记忆**：本网关的 Session 只存会话元数据（session_id、channel、channel_user_id、channel_session_id、时间戳），**不存任何对话内容或历史**。对话上下文与记忆完全由 **iFlow** 按 session_id 管理，网关侧没有自建记忆机制，也不会与 iFlow 的记忆系统冲突。
+
+- **Web**：前端将 `session_id` 存入 **localStorage**（键 `iflow_agent_session_id`）。刷新页面或关闭后重新打开，会恢复上次会话；若当前域名下没有保存的 session（例如首次访问或换了地址），页面加载时会**自动创建会话**并写入 localStorage，避免一直显示「未创建会话」。注意：localStorage 按浏览器「源」隔离，`http://localhost:8000` 与 `http://127.0.0.1:8000` 不是同一源，会话不会互通，建议固定用同一地址访问（如始终用 localhost 或始终用 127.0.0.1）。
+
+- **聊天渠道（如 Telegram）**：不传 session_id 时，网关用「渠道 + 用户 ID + 会话 ID」生成**稳定 session_id**（哈希），同一用户/群聊在**重启网关后**仍对应同一 session_id，便于 iFlow 侧延续会话。若用户发送 **`/new`**，则为该渠道用户**新建会话**并设为当前会话（内存 override），之后消息走新会话，直到再次发送 `/new`。
+
+- **新建会话指令 `/new`**：Web 与聊天渠道均支持。发送内容为 **`/new`**（不区分大小写）时：
+  - **Web**：前端不请求聊天 API，直接调用 `POST /api/sessions` 拿到新 session_id 并写入 localStorage，界面提示「已新建会话，可以继续发消息。」。
+  - **Telegram 等**：后端识别后调用 `ensure_new_session`，向该用户回复「已新建会话，可以继续发消息。」，后续消息使用新 session_id。
+
+- **iFlow 的记忆 vs 可拉取的「消息历史」**：iFlow 确实有**记忆系统**，主要包括：[记忆配置](https://platform.iflow.cn/cli/configuration/iflow) 中的 **IFLOW.md**（项目/全局上下文）、**save_memory** 持久化、以及斜杠命令如 `/chat list`、`/chat save`、`/memory show` 等。这些是 iFlow **内部**用于上下文和 CLI 对话管理的，能让续聊时 AI 仍记得之前的内容。但 **SDK 并未暴露「按 session_id 返回消息列表」的查询接口**（只有实时 `receive_messages()`，没有“拉历史”的 API），因此网关无法从 iFlow 拉取历史再给前端展示。
+
+- **对话记录展示（为何用 localStorage）**：为在 **Web 刷新后恢复对话记录展示**，本项目在前端用 **localStorage** 按 session_id 存一份消息列表（键 `iflow_agent_history_<session_id>`），仅用于当前浏览器渲染，与 iFlow 侧记忆互不干扰。若日后 iFlow 提供会话历史 API，可在网关增加例如 `GET /api/sessions/<id>/history`，由前端改为从该接口加载历史。
+
+## 工作目录（cwd）与默认工作区
+
+- **默认工作区**：启动时会在**用户目录**下创建与当前项目同名的目录（默认名为 `.iflowagentworkspace`，可通过 `IFLOW_WORKSPACE_DIR_NAME` 配置），兼容 Windows（`%USERPROFILE%`）与 Linux（`$HOME`）。未传 `cwd` 时，Web 与 Telegram 均使用该目录作为 iFlow 工作目录。
+- **动态切换**：iFlow 启动后无需重启即可按请求切换。**POST /api/chat** 请求体支持可选字段 **`cwd`**（字符串）；传入则本次对话使用该目录，不传则使用上述默认工作区路径。同一会话可随时发不同 `cwd`。
+
 ## API 摘要
 
 | 方法 | 路径 | 说明 |
@@ -162,5 +183,5 @@ iflow-agent/
 | GET | /ready | 就绪探针（含 iflow_url） |
 | POST | /api/sessions | 创建会话，返回 session_id |
 | GET | /api/sessions/{session_id} | 获取会话信息 |
-| POST | /api/chat | 流式聊天，请求体含 message、session_id 等，响应 SSE |
+| POST | /api/chat | 流式聊天，请求体含 message、session_id、**cwd**（可选）等，响应 SSE |
 | POST | /channels/telegram | Telegram Bot Webhook（Telegram 服务器调用，需配置 setWebhook） |

@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.services.chat_service import ensure_session, get_store, stream_reply
+from core.config import settings
 from core.iflow_bridge import format_event_for_sse
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -21,6 +22,7 @@ class ChatRequest(BaseModel):
     channel: str = Field(default="web", description="渠道标识")
     channel_user_id: str = Field(default="default", description="渠道侧用户 ID")
     channel_session_id: Optional[str] = Field(None, description="渠道侧会话 ID，不传则用 session_id")
+    cwd: Optional[str] = Field(None, description="本次请求的 iFlow 工作目录，不传则用 iFlow 默认；支持动态切换")
 
 
 class CreateSessionRequest(BaseModel):
@@ -72,10 +74,13 @@ async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
         session_id=body.session_id,
     )
 
+    cwd = (body.cwd and body.cwd.strip()) or settings.iflow_default_workspace_path()
+
     async def event_stream():
         async for event in stream_reply(
             message=body.message,
             session_id=info.session_id,
+            cwd=cwd,
         ):
             yield format_event_for_sse(event)
 

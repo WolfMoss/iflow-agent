@@ -44,9 +44,17 @@ def _configure_logging() -> None:
     )
 
 
+def _ensure_default_workspace() -> None:
+    """在用户目录下创建默认工作区目录（如 .iflowagentworkspace），兼容 Win/Linux。"""
+    path = Path(settings.iflow_default_workspace_path())
+    path.mkdir(parents=True, exist_ok=True)
+    logging.getLogger(__name__).info("默认工作目录: %s", path)
+
+
 @app.on_event("startup")
 async def startup() -> None:
     _configure_logging()
+    _ensure_default_workspace()
     proc = start_iflow_process()
     if proc is not None:
         app.state.iflow_process = proc

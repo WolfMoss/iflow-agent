@@ -9,15 +9,52 @@
   const sessionIdEl = document.getElementById("sessionId");
   const newSessionBtn = document.getElementById("newSessionBtn");
 
+  const STORAGE_KEY = "iflow_agent_session_id";
+  const HISTORY_PREFIX = "iflow_agent_history_";
+  const MAX_HISTORY = 100;
   let sessionId = null;
 
-  function apiBase() {
-    const a = document.createElement("a");
-    a.href = "/";
-    return a.origin;
+  function getStoredSessionId() {
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return null;
+    }
   }
 
-  function appendMessage(role, content, meta) {
+  function setStoredSessionId(id) {
+    try {
+      if (id) localStorage.setItem(STORAGE_KEY, id);
+      else localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+  }
+
+  function getHistory(sid) {
+    if (!sid) return [];
+    try {
+      const raw = localStorage.getItem(HISTORY_PREFIX + sid);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function setHistory(sid, list) {
+    if (!sid) return;
+    try {
+      const trimmed = list.slice(-MAX_HISTORY);
+      localStorage.setItem(HISTORY_PREFIX + sid, JSON.stringify(trimmed));
+    } catch (e) {}
+  }
+
+  function addMessageToHistory(role, content, meta) {
+    if (!sessionId) return;
+    const list = getHistory(sessionId);
+    list.push({ role: role, content: content || "", meta: meta || "" });
+    setHistory(sessionId, list);
+  }
+
+  function renderMessage(role, content, meta) {
     if (welcome && welcome.classList) welcome.classList.add("hidden");
     const div = document.createElement("div");
     div.className = "msg " + role;
@@ -30,6 +67,29 @@
     messages.appendChild(div);
     chat.scrollTop = chat.scrollHeight;
     return contentEl;
+  }
+
+  function appendMessage(role, content, meta) {
+    addMessageToHistory(role, content, meta);
+    return renderMessage(role, content, meta);
+  }
+
+  function loadAndRenderHistory() {
+    if (!sessionId || !messages) return;
+    messages.innerHTML = "";
+    if (welcome && welcome.classList) welcome.classList.remove("hidden");
+    const list = getHistory(sessionId);
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      renderMessage(m.role, m.content, m.meta);
+    }
+    if (list.length > 0 && welcome && welcome.classList) welcome.classList.add("hidden");
+  }
+
+  function apiBase() {
+    const a = document.createElement("a");
+    a.href = "/";
+    return a.origin;
   }
 
   async function createSession() {
@@ -45,13 +105,35 @@
     if (!res.ok) throw new Error("创建会话失败");
     const data = await res.json();
     sessionId = data.session_id;
+    setStoredSessionId(sessionId);
     if (sessionIdEl) sessionIdEl.textContent = "会话: " + sessionId.slice(0, 8) + "...";
     return sessionId;
+  }
+
+  function initSession() {
+    sessionId = getStoredSessionId();
+    if (sessionIdEl && sessionId) {
+      sessionIdEl.textContent = "会话: " + sessionId.slice(0, 8) + "...";
+      loadAndRenderHistory();
+      return;
+    }
+    if (sessionIdEl) sessionIdEl.textContent = "未创建会话";
+    createSession().then(function () {
+      if (sessionIdEl) sessionIdEl.textContent = "会话: " + sessionId.slice(0, 8) + "...";
+      loadAndRenderHistory();
+    }).catch(function () {});
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initSession);
+  } else {
+    initSession();
   }
 
   newSessionBtn.addEventListener("click", async function () {
     try {
       await createSession();
+      loadAndRenderHistory();
     } catch (e) {
       console.error(e);
     }
@@ -61,6 +143,18 @@
     e.preventDefault();
     const text = (input.value || "").trim();
     if (!text) return;
+
+    if (text.toLowerCase() === "/new") {
+      input.value = "";
+      try {
+        await createSession();
+        loadAndRenderHistory();
+        appendMessage("assistant", "已新建会话，可以继续发消息。", "系统");
+      } catch (err) {
+        appendMessage("assistant", "新建会话失败: " + err.message, "错误").classList.add("error");
+      }
+      return;
+    }
 
     if (!sessionId) {
       try {
@@ -75,7 +169,7 @@
     input.value = "";
     sendBtn.disabled = true;
 
-    const contentEl = appendMessage("assistant", "…");
+    const contentEl = renderMessage("assistant", "…", "");
     const metaEl = contentEl.previousElementSibling;
     let full = "";
 
@@ -129,9 +223,11 @@
         chat.scrollTop = chat.scrollHeight;
       }
       if (!full && contentEl.textContent === "…") contentEl.textContent = "(无文本回复)";
+      addMessageToHistory("assistant", full || contentEl.textContent, metaEl ? metaEl.textContent : "");
     } catch (err) {
       contentEl.textContent = "请求异常: " + err.message;
       contentEl.classList.add("error");
+      addMessageToHistory("assistant", "请求异常: " + err.message, "错误");
     } finally {
       sendBtn.disabled = false;
     }

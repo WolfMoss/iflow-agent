@@ -20,25 +20,34 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _options(session_id: str | None = None, timeout: float | None = None) -> IFlowOptions:
-    return IFlowOptions(
-        url=settings.iflow_ws_url,
-        auto_start_process=False,
-        timeout=timeout or settings.iflow_timeout,
-        session_id=session_id,
-    )
+def _options(
+    session_id: str | None = None,
+    timeout: float | None = None,
+    cwd: str | None = None,
+) -> IFlowOptions:
+    kwargs: dict = {
+        "url": settings.iflow_ws_url,
+        "auto_start_process": False,
+        "timeout": timeout or settings.iflow_timeout,
+        "session_id": session_id,
+    }
+    if cwd and cwd.strip():
+        kwargs["cwd"] = cwd.strip()
+    return IFlowOptions(**kwargs)
 
 
 async def stream_chat(
     message: str,
     session_id: str | None = None,
     timeout: float | None = None,
+    cwd: str | None = None,
 ) -> AsyncIterator[dict]:
     """
     向 iFlow 发送一条消息，并流式产出标准化事件字典。
     事件类型: assistant_chunk, tool_call, plan, task_finish, error。
+    cwd 可指定本次对话的工作目录，不传则使用 iFlow 默认（进程当前目录）。
     """
-    options = _options(session_id=session_id, timeout=timeout)
+    options = _options(session_id=session_id, timeout=timeout, cwd=cwd)
     try:
         async with IFlowClient(options) as client:
             await client.send_message(message)

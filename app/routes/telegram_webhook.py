@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from app.services.chat_service import ensure_session, stream_reply
+from app.services.chat_service import ensure_new_session, ensure_session, is_new_session_command, stream_reply
 from channels.telegram import TelegramChannelAdapter, get_updates
 from core.config import settings
 
@@ -21,8 +21,22 @@ _telegram_adapter = TelegramChannelAdapter()
 
 
 async def _handle_telegram_event(event: Any) -> None:
-    """后台：确保会话、流式回复、通过 Telegram 适配器回发。"""
+    """后台：确保会话、流式回复、通过 Telegram 适配器回发。识别 /new 则新建会话并回复提示。"""
     try:
+        if is_new_session_command(event.message):
+            info = await ensure_new_session(
+                channel=event.channel,
+                channel_user_id=event.channel_user_id,
+                channel_session_id=event.channel_session_id,
+            )
+
+            async def new_session_reply():
+                yield {"type": "assistant_chunk", "text": "已新建会话，可以继续发消息。"}
+                yield {"type": "task_finish", "stop_reason": ""}
+
+            await _telegram_adapter.send_stream(info, new_session_reply())
+            return
+
         info = await ensure_session(
             channel=event.channel,
             channel_user_id=event.channel_user_id,
@@ -33,6 +47,7 @@ async def _handle_telegram_event(event: Any) -> None:
             async for e in stream_reply(
                 message=event.message,
                 session_id=info.session_id,
+                cwd=settings.iflow_default_workspace_path(),
             ):
                 yield e
 
