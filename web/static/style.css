@@ -74,6 +74,21 @@ body {
   white-space: nowrap;
 }
 
+.typing-indicator {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  animation: typing-pulse 1.2s ease-in-out infinite;
+}
+
+.typing-indicator.hidden {
+  display: none;
+}
+
+@keyframes typing-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 .chat {
   flex: 1;
   overflow-y: auto;

@@ -171,7 +171,15 @@
 
     const contentEl = renderMessage("assistant", "…", "");
     const metaEl = contentEl.previousElementSibling;
+    const typingEl = document.getElementById("typingIndicator");
     let full = "";
+
+    function showTyping() {
+      if (typingEl) typingEl.classList.remove("hidden");
+    }
+    function hideTyping() {
+      if (typingEl) typingEl.classList.add("hidden");
+    }
 
     try {
       const res = await fetch(apiBase() + "/api/chat", {
@@ -203,17 +211,24 @@
           if (line.startsWith("data: ")) {
             try {
               const event = JSON.parse(line.slice(6));
-              if (event.type === "assistant_chunk" && event.text) {
+              if (event.type === "typing_start") {
+                showTyping();
+              } else if (event.type === "assistant_chunk" && event.text) {
+                hideTyping();
                 full += event.text;
                 contentEl.textContent = full;
                 if (metaEl) metaEl.textContent = "";
               } else if (event.type === "tool_call" && metaEl) {
+                hideTyping();
                 metaEl.textContent = "工具: " + (event.tool_name || event.status || "调用中");
               } else if (event.type === "plan" && event.entries && metaEl) {
+                hideTyping();
                 metaEl.textContent = "计划: " + event.entries.length + " 步";
               } else if (event.type === "task_finish") {
+                hideTyping();
                 if (metaEl) metaEl.textContent = "完成";
               } else if (event.type === "error") {
+                hideTyping();
                 contentEl.textContent = event.message || "错误";
                 contentEl.classList.add("error");
               }
@@ -225,10 +240,12 @@
       if (!full && contentEl.textContent === "…") contentEl.textContent = "(无文本回复)";
       addMessageToHistory("assistant", full || contentEl.textContent, metaEl ? metaEl.textContent : "");
     } catch (err) {
+      hideTyping();
       contentEl.textContent = "请求异常: " + err.message;
       contentEl.classList.add("error");
       addMessageToHistory("assistant", "请求异常: " + err.message, "错误");
     } finally {
+      hideTyping();
       sendBtn.disabled = false;
     }
   });

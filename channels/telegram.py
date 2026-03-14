@@ -6,6 +6,7 @@ Telegram 渠道适配器。
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, AsyncIterator
 
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_API_BASE = "https://api.telegram.org"
 MAX_MESSAGE_LENGTH = 4096
 LONG_POLL_TIMEOUT = 25
+TYPING_ACTION_INTERVAL = 4
 
 
 def _extract_message_from_update(raw: dict) -> tuple[str, str, str] | None:
@@ -65,6 +67,23 @@ class TelegramChannelAdapter(ChannelAdapter):
             raw=raw,
         )
 
+    async def send_chat_action(self, chat_id: str, action: str = "typing") -> None:
+        """发送聊天状态（如「正在输入」），在对话标题处显示。action 约 5 秒后失效，需定期重发。"""
+        token = settings.telegram_bot_token.strip()
+        if not token:
+            return
+        url = f"{TELEGRAM_API_BASE}/bot{token}/sendChatAction"
+        timeout = httpx.Timeout(settings.telegram_timeout)
+        proxy = settings.telegram_proxy.strip() or None
+        try:
+            async with httpx.AsyncClient(timeout=timeout, proxy=proxy) as client:
+                await client.post(
+                    url,
+                    json={"chat_id": chat_id, "action": action},
+                )
+        except Exception as e:
+            logger.debug("sendChatAction 失败: %s", e)
+
     async def send_stream(
         self,
         session_info: SessionInfo,
@@ -73,29 +92,49 @@ class TelegramChannelAdapter(ChannelAdapter):
         buffer: list[str] = []
         current = []
         current_len = 0
+        chat_id = session_info.channel_session_id
 
-        async for event in events:
-            if event.get("type") == "assistant_chunk":
-                chunk = event.get("text") or ""
-                if not chunk:
-                    continue
-                for char in chunk:
-                    if current_len >= MAX_MESSAGE_LENGTH:
-                        buffer.append("".join(current))
-                        current = []
-                        current_len = 0
-                    current.append(char)
-                    current_len += 1
-            elif event.get("type") == "task_finish":
-                break
-            elif event.get("type") == "error":
-                buffer.append(event.get("message", "请求出错"))
-                break
+        typing_task: asyncio.Task | None = None
+
+        async def _keep_typing() -> None:
+            while True:
+                await self.send_chat_action(chat_id, "typing")
+                await asyncio.sleep(TYPING_ACTION_INTERVAL)
+
+        try:
+            typing_task = asyncio.create_task(_keep_typing())
+        except Exception:
+            pass
+
+        try:
+            async for event in events:
+                if event.get("type") == "assistant_chunk":
+                    chunk = event.get("text") or ""
+                    if not chunk:
+                        continue
+                    for char in chunk:
+                        if current_len >= MAX_MESSAGE_LENGTH:
+                            buffer.append("".join(current))
+                            current = []
+                            current_len = 0
+                        current.append(char)
+                        current_len += 1
+                elif event.get("type") == "task_finish":
+                    break
+                elif event.get("type") == "error":
+                    buffer.append(event.get("message", "请求出错"))
+                    break
+        finally:
+            if typing_task is not None and not typing_task.done():
+                typing_task.cancel()
+                try:
+                    await typing_task
+                except asyncio.CancelledError:
+                    pass
 
         if current:
             buffer.append("".join(current))
 
-        chat_id = session_info.channel_session_id
         token = settings.telegram_bot_token.strip()
         if not token:
             logger.warning("Telegram token 未配置，无法回发")

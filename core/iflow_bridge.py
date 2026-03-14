@@ -55,18 +55,25 @@ async def stream_chat(
             await client.send_message(message)
             async for msg in client.receive_messages():
                 if isinstance(msg, AssistantMessage):
-                    yield {
+                    text = getattr(msg.chunk, "text", "") or ""
+                    event = {
                         "type": "assistant_chunk",
-                        "text": getattr(msg.chunk, "text", "") or "",
+                        "text": text,
                         "agent_id": getattr(msg, "agent_id", None),
                     }
+                    logger.debug("iflow event: assistant_chunk len=%s", len(text))
+                    yield event
                 elif isinstance(msg, ToolCallMessage):
-                    yield {
+                    status = str(getattr(msg, "status", ""))
+                    tool_name = getattr(msg, "tool_name", None)
+                    event = {
                         "type": "tool_call",
-                        "status": str(getattr(msg, "status", "")),
-                        "tool_name": getattr(msg, "tool_name", None),
+                        "status": status,
+                        "tool_name": tool_name,
                         "agent_id": getattr(msg.agent_info, "agent_id", None) if getattr(msg, "agent_info", None) else None,
                     }
+                    logger.info("iflow event: tool_call tool_name=%s status=%s", tool_name, status)
+                    yield event
                 elif isinstance(msg, PlanMessage):
                     entries = [
                         {
@@ -76,15 +83,18 @@ async def stream_chat(
                         }
                         for e in getattr(msg, "entries", [])
                     ]
-                    yield {"type": "plan", "entries": entries}
+                    event = {"type": "plan", "entries": entries}
+                    logger.info("iflow event: plan entries=%s", len(entries))
+                    yield event
                 elif isinstance(msg, TaskFinishMessage):
-                    yield {
-                        "type": "task_finish",
-                        "stop_reason": str(getattr(msg, "stop_reason", "")),
-                    }
+                    stop_reason = str(getattr(msg, "stop_reason", ""))
+                    event = {"type": "task_finish", "stop_reason": stop_reason}
+                    logger.info("iflow event: task_finish stop_reason=%s", stop_reason)
+                    yield event
                     return
     except Exception as e:
         logger.exception("iflow stream_chat error")
+        logger.info("iflow event: error message=%s", str(e))
         yield {"type": "error", "message": str(e)}
 
 

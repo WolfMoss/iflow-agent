@@ -77,6 +77,7 @@ async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
     cwd = (body.cwd and body.cwd.strip()) or settings.iflow_default_workspace_path()
 
     async def event_stream():
+        yield format_event_for_sse({"type": "typing_start"})
         async for event in stream_reply(
             message=body.message,
             session_id=info.session_id,
