@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     telegram_allow_from: str = ""
     # True 时仅使用 Webhook（需公网 HTTPS），不启动 Long Polling；默认 False，本地用 Long Polling 无需域名
     telegram_use_webhook: bool = False
+    # 请求 Telegram API 的代理 URL（如 http://127.0.0.1:7890），空则不使用
+    telegram_proxy: str = ""
+    # 连接 Telegram API 的超时秒数（含 TLS），网络受限时可适当调大
+    telegram_timeout: float = 60.0
 
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token.strip())

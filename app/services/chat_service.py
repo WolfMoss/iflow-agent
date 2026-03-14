@@ -12,13 +12,8 @@ from core.config import settings
 
 
 _session_store: SessionStore | None = None
-_session_override: dict[str, str] = {}
 
 NEW_SESSION_CMD = "/new"
-
-
-def _override_key(channel: str, channel_user_id: str, channel_session_id: str) -> str:
-    return f"{channel}:{channel_user_id}:{channel_session_id}"
 
 
 def is_new_session_command(message: str) -> bool:
@@ -52,10 +47,9 @@ async def ensure_session(
         if info:
             return info
     if session_id is None and channel != "web" and (channel_user_id or channel_session_id):
-        key = _override_key(channel, channel_user_id, channel_session_id)
-        session_id = _session_override.get(key) or _stable_session_id(
+        session_id = store.get_current_session_id(
             channel, channel_user_id, channel_session_id
-        )
+        ) or _stable_session_id(channel, channel_user_id, channel_session_id)
     return store.create(
         channel=channel,
         channel_user_id=channel_user_id,
@@ -72,8 +66,7 @@ async def ensure_new_session(
     """新建会话并设为该渠道用户的当前会话（覆盖稳定 id），用于 /new 指令。"""
     store = get_store()
     new_id = str(uuid.uuid4())
-    key = _override_key(channel, channel_user_id, channel_session_id)
-    _session_override[key] = new_id
+    store.set_current_session_id(channel, channel_user_id, channel_session_id, new_id)
     return store.create(
         channel=channel,
         channel_user_id=channel_user_id,

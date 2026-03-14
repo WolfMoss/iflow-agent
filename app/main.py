@@ -2,6 +2,7 @@
 """FastAPI 应用入口：路由、静态资源、CORS。"""
 import asyncio
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
-from core.iflow_runner import start_iflow_process
+from core.iflow_runner import start_iflow_process, stop_iflow_process
 from app.routes import chat, health, telegram_webhook
 from app.routes.telegram_webhook import run_telegram_long_polling
 
@@ -45,10 +46,14 @@ def _configure_logging() -> None:
 
 
 def _ensure_default_workspace() -> None:
-    """在用户目录下创建默认工作区目录（如 .iflowagentworkspace），兼容 Win/Linux。"""
+    """在用户目录下创建默认工作区目录，并将进程 cwd 切到该目录。
+    这样 iFlow 子进程继承的 cwd、SDK IFlowOptions 的默认 cwd（os.getcwd()）
+    以及 protocol 参数里的 cwd 全部指向同一个工作区，不再受 run.py 启动目录影响。
+    """
     path = Path(settings.iflow_default_workspace_path())
     path.mkdir(parents=True, exist_ok=True)
-    logging.getLogger(__name__).info("默认工作目录: %s", path)
+    os.chdir(path)
+    logging.getLogger(__name__).info("默认工作目录（已 chdir）: %s", path)
 
 
 @app.on_event("startup")
@@ -66,10 +71,6 @@ async def startup() -> None:
 @app.on_event("shutdown")
 async def shutdown() -> None:
     proc = getattr(app.state, "iflow_process", None)
-    if proc is not None and proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
+    stop_iflow_process(proc)
+    if proc is not None:
         logging.getLogger(__name__).info("已停止自动启动的 iFlow 进程")

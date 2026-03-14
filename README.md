@@ -154,6 +154,8 @@ iflow-agent/
 
 **部署到公网时（可选）：** 若将服务部署到有域名的服务器，可设置 `TELEGRAM_USE_WEBHOOK=true` 并配置 Telegram Webhook（`setWebhook` 指向 `https://你的域名/channels/telegram`），由 Telegram 主动推送消息，此时不再运行 Long Polling。
 
+**连接超时（ConnectTimeout）：** 若出现 `httpx.ConnectTimeout`（连接 Telegram API 超时），可在 `.env` 中增大 `TELEGRAM_TIMEOUT=60`（默认 60 秒），或配置代理：`TELEGRAM_PROXY=http://127.0.0.1:7890`（按本地代理实际地址填写）。
+
 ## 会话（Session）与记忆
 
 - **网关只做会话路由，不实现记忆**：本网关的 Session 只存会话元数据（session_id、channel、channel_user_id、channel_session_id、时间戳），**不存任何对话内容或历史**。对话上下文与记忆完全由 **iFlow** 按 session_id 管理，网关侧没有自建记忆机制，也不会与 iFlow 的记忆系统冲突。

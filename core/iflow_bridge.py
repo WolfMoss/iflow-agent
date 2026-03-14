@@ -33,7 +33,9 @@ def _options(
     }
     if cwd and cwd.strip():
         kwargs["cwd"] = cwd.strip()
-    return IFlowOptions(**kwargs)
+    opts = IFlowOptions(**kwargs)
+    logger.info("IFlowOptions: cwd=%s, session_id=%s", opts.cwd, opts.session_id)
+    return opts
 
 
 async def stream_chat(

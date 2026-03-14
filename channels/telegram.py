@@ -102,11 +102,13 @@ class TelegramChannelAdapter(ChannelAdapter):
             return
         url = f"{TELEGRAM_API_BASE}/bot{token}/sendMessage"
 
+        timeout = httpx.Timeout(settings.telegram_timeout)
+        proxy = settings.telegram_proxy.strip() or None
         for i, part in enumerate(buffer):
             if not part.strip():
                 continue
             try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
+                async with httpx.AsyncClient(timeout=timeout, proxy=proxy) as client:
                     r = await client.post(
                         url,
                         json={"chat_id": chat_id, "text": part},
@@ -127,8 +129,10 @@ async def get_updates(offset: int, timeout: int = LONG_POLL_TIMEOUT) -> tuple[li
         return [], offset
     url = f"{TELEGRAM_API_BASE}/bot{token}/getUpdates"
     next_offset = offset
+    tg_timeout = httpx.Timeout(max(settings.telegram_timeout, float(timeout + 10)))
+    proxy = settings.telegram_proxy.strip() or None
     try:
-        async with httpx.AsyncClient(timeout=float(timeout + 5)) as client:
+        async with httpx.AsyncClient(timeout=tg_timeout, proxy=proxy) as client:
             r = await client.get(
                 url,
                 params={"offset": offset, "timeout": timeout},
