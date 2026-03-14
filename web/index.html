@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iFlow Agent</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>iFlow Agent</h1>
+      <p class="subtitle">模型 / Skill / MCP 由 iFlow CLI 原生提供</p>
+    </header>
+
+    <main class="main">
+      <div class="session-bar">
+        <span class="session-id" id="sessionId">未创建会话</span>
+        <button type="button" class="btn btn-secondary" id="newSessionBtn">新建会话</button>
+      </div>
+
+      <div class="chat" id="chat">
+        <div class="welcome" id="welcome">
+          <p>发送一条消息开始对话。请先确保已启动 iFlow：</p>
+          <code>iflow --experimental-acp --port 8090</code>
+        </div>
+        <div class="messages" id="messages"></div>
+      </div>
+
+      <form class="input-area" id="form">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="输入消息…"
+          autocomplete="off"
+        ></textarea>
+        <button type="submit" class="btn btn-primary" id="sendBtn">发送</button>
+      </form>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

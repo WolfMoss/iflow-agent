@@ -1,0 +1,12 @@
+# iFlow SDK (manual mode, connect to existing iflow process)
+iflow-cli-sdk>=0.1.11
+
+# Web
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Config & env
+pydantic-settings>=2.0.0
+
+# Telegram Bot API
+httpx>=0.27.0
