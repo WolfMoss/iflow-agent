@@ -187,3 +187,102 @@ iflow-agent/
 | GET | /api/sessions/{session_id} | 获取会话信息 |
 | POST | /api/chat | 流式聊天，请求体含 message、session_id、**cwd**（可选）等，响应 SSE |
 | POST | /channels/telegram | Telegram Bot Webhook（Telegram 服务器调用，需配置 setWebhook） |
+
+## 直接 REST 调用
+
+网关默认监听 `http://localhost:8000`（可在 `.env` 中修改 `HOST`、`PORT`）。以下示例均以该地址为 base URL。
+
+### 健康检查
+
+```bash
+curl http://localhost:8000/health
+# {"status":"ok"}
+
+curl http://localhost:8000/ready
+# {"status":"ok","iflow_url":"ws://localhost:8090/acp"}
+```
+
+### 创建会话（可选）
+
+不传 `session_id` 时，聊天接口会自动建会话；若想先拿到 `session_id` 再发消息，可先调：
+
+```bash
+curl -X POST http://localhost:8000/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"web","channel_user_id":"default","channel_session_id":""}'
+```
+
+返回示例：`{"session_id":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}`
+
+### 流式聊天（主接口）
+
+- **请求**：`POST /api/chat`，JSON body，响应为 **SSE 流**（`Content-Type: text/event-stream`）。
+- **Body 字段**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| message | string | 是 | 用户消息内容 |
+| session_id | string | 否 | 会话 ID，不传则新建 |
+| channel | string | 否 | 默认 `"web"` |
+| channel_user_id | string | 否 | 默认 `"default"` |
+| channel_session_id | string | 否 | 不传则用 session_id |
+| cwd | string | 否 | 工作目录，不传则用默认工作区 |
+
+**示例（新会话，不传 session_id）：**
+
+```bash
+curl -N -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"你好，请简短回复"}'
+```
+
+**示例（指定会话，延续同一会话）：**
+
+```bash
+curl -N -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"继续上一条","session_id":"上一步返回的 session_id"}'
+```
+
+`-N` 表示关闭 curl 缓冲，才能边收边看到 SSE 流。
+
+**响应**：每行一条 SSE，例如：
+
+```
+data: {"type":"typing_start"}
+
+data: {"type":"assistant_chunk","text":"你","agent_id":null}
+
+data: {"type":"assistant_chunk","text":"好",...}
+...
+data: {"type":"task_finish","stop_reason":""}
+```
+
+事件类型：`typing_start`、`assistant_chunk`、`tool_call`、`plan`、`task_finish`、`error`。
+
+### 查询会话信息
+
+```bash
+curl http://localhost:8000/api/sessions/{session_id}
+```
+
+返回该会话的 `session_id`、`channel`、`channel_user_id`、`channel_session_id`、`created_at`、`last_active_at`。
+
+### 用 Python 消费流式响应
+
+```python
+import requests
+import json
+
+url = "http://localhost:8000/api/chat"
+payload = {"message": "你好，简短回复"}
+
+with requests.post(url, json=payload, stream=True) as r:
+    r.raise_for_status()
+    for line in r.iter_lines():
+        if line and line.startswith(b"data: "):
+            event = json.loads(line[6:])
+            print(event)
+            if event.get("type") == "task_finish":
+                break
+```
