@@ -169,14 +169,23 @@ def start_qq_bot_in_background() -> None:
                 logger.exception("QQ direct 消息处理异常: %s", e)
 
     def _thread_main() -> None:
-        intents = botpy.Intents(
-            public_guild_messages=True,  # 频道 @ 消息
-            public_messages=True,  # C2C / 群
-            direct_message=True,  # 频道私信
-            guild_messages=True,  # 全量频道消息（私域机器人）
-        )
-        client = QQBot(intents=intents, is_sandbox=settings.qq_sandbox)
-        client.run(appid=settings.qq_app_id, secret=settings.qq_app_secret)
+        # 为 qq-botpy 线程创建并设置事件循环，避免 RuntimeError: no current event loop
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            intents = botpy.Intents(
+                public_guild_messages=True,  # 频道 @ 消息
+                public_messages=True,  # C2C / 群
+                direct_message=True,  # 频道私信
+                guild_messages=True,  # 全量频道消息（私域机器人）
+            )
+            client = QQBot(intents=intents, is_sandbox=settings.qq_sandbox)
+            client.run(appid=settings.qq_app_id, secret=settings.qq_app_secret)
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
 
     t = threading.Thread(target=_thread_main, name="qq-botpy", daemon=True)
     t.start()
