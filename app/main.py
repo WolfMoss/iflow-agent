@@ -13,6 +13,8 @@ from core.config import settings
 from core.iflow_runner import start_iflow_process, stop_iflow_process
 from app.routes import chat, health, telegram_webhook
 from app.routes.telegram_webhook import run_telegram_long_polling
+from app.routes.iflow_admin import router as iflow_admin_router
+from app.routes.channels_admin import router as channels_admin_router
 from channels.qq import start_qq_bot_in_background
 
 app = FastAPI(
@@ -31,6 +33,8 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(chat.router)
 app.include_router(telegram_webhook.router)
+app.include_router(iflow_admin_router)
+app.include_router(channels_admin_router)
 
 # 静态资源：Web UI
 web_dir = Path(__file__).resolve().parent.parent / "web"
@@ -44,6 +48,8 @@ def _configure_logging() -> None:
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+    # Uvicorn 可能已提前配置日志；手动确保根 logger 级别生效
+    logging.getLogger().setLevel(level)
 
 
 def _ensure_default_workspace() -> None:

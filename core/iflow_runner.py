@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """启动网关时自动拉起 iFlow 进程（手动模式：iflow --experimental-acp --port N）。"""
 import logging
+import shlex
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,7 @@ def stop_iflow_process(proc: subprocess.Popen | None) -> None:
     if proc is None or proc.poll() is not None:
         return
     if sys.platform == "win32":
+        logger.info("停止 iFlow 进程 PID=%s", proc.pid)
         subprocess.run(
             f"taskkill /F /T /PID {proc.pid}",
             shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -71,6 +73,7 @@ def stop_iflow_process(proc: subprocess.Popen | None) -> None:
     try:
         proc.wait(timeout=5)
     except Exception:
+        logger.warning("等待 iFlow 进程退出超时，强制杀掉 PID=%s", proc.pid)
         proc.kill()
 
 
@@ -91,6 +94,7 @@ def start_iflow_process() -> subprocess.Popen | None:
     port = settings.iflow_port()
     workspace_dir = settings.iflow_default_workspace_path()
 
+    logger.info("准备启动 iFlow (port=%s, cwd=%s)", port, workspace_dir)
     kill_processes_on_port(port)
 
     try:
@@ -104,6 +108,42 @@ def start_iflow_process() -> subprocess.Popen | None:
     except Exception as e:
         logger.exception("启动 iFlow 进程失败: %s", e)
         return None
+
+
+def restart_iflow_process(proc: subprocess.Popen | None) -> subprocess.Popen | None:
+    """重启 iFlow ACP 进程：先停后启。"""
+    old_pid = getattr(proc, "pid", None) if proc is not None else None
+    logger.info("重启 iFlow（旧 PID=%s）", old_pid)
+    stop_iflow_process(proc)
+    return start_iflow_process()
+
+
+def run_iflow_cli(args: list[str], *, timeout: float = 30.0) -> tuple[int, str, str]:
+    """执行 iflow 子命令（如 mcp list）。Windows 必须用 shell，否则找不到 npm 的 iflow.cmd。"""
+    if sys.platform == "win32":
+        line = "iflow " + " ".join(shlex.quote(str(a)) for a in args)
+        p = subprocess.run(
+            line,
+            shell=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    else:
+        exe = shutil.which("iflow")
+        if not exe:
+            raise FileNotFoundError("iflow not found in PATH")
+        p = subprocess.run(
+            [exe, *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    return p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
 
 
 def _popen_iflow(port: int, cwd: str | None = None) -> subprocess.Popen | None:

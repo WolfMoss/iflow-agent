@@ -13,32 +13,144 @@
       <p class="subtitle">模型 / Skill / MCP 由 iFlow CLI 原生提供</p>
     </header>
 
-    <main class="main">
-      <div class="session-bar">
-        <span class="session-id" id="sessionId">未创建会话</span>
-        <span class="typing-indicator hidden" id="typingIndicator">正在输入…</span>
-        <button type="button" class="btn btn-secondary" id="newSessionBtn">新建会话</button>
-      </div>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-title">菜单</div>
+        <button type="button" class="btn btn-secondary nav-btn" id="navChat">聊天</button>
+        <button type="button" class="btn btn-secondary nav-btn" id="navChannels">渠道配置</button>
+        <button type="button" class="btn btn-secondary nav-btn" id="navSkills">Skills</button>
+        <button type="button" class="btn btn-secondary nav-btn" id="navMcp">MCP</button>
+      </aside>
 
-      <div class="chat" id="chat">
-        <div class="welcome" id="welcome">
-          <p>发送一条消息开始对话。请先确保已启动 iFlow：</p>
-          <code>iflow --experimental-acp --port 8090</code>
-        </div>
-        <div class="messages" id="messages"></div>
-      </div>
+      <div class="content">
+        <section id="page-chat" class="page">
+          <main class="main">
+            <div class="session-bar">
+              <span class="session-id" id="sessionId">未创建会话</span>
+              <span class="typing-indicator hidden" id="typingIndicator">正在输入…</span>
+              <button type="button" class="btn btn-secondary" id="newSessionBtn">新建会话</button>
+            </div>
 
-      <form class="input-area" id="form">
-        <textarea
-          id="input"
-          rows="1"
-          placeholder="输入消息…"
-          autocomplete="off"
-        ></textarea>
-        <button type="submit" class="btn btn-primary" id="sendBtn">发送</button>
-      </form>
-    </main>
+            <div class="chat" id="chat">
+              <div class="welcome" id="welcome">
+                <p>发送一条消息开始对话。请先确保已启动 iFlow：</p>
+                <code>iflow --experimental-acp --port 8090</code>
+              </div>
+              <div class="messages" id="messages"></div>
+            </div>
+
+            <form class="input-area" id="form">
+              <textarea
+                id="input"
+                rows="1"
+                placeholder="输入消息…"
+                autocomplete="off"
+              ></textarea>
+              <button type="submit" class="btn btn-primary" id="sendBtn">发送</button>
+            </form>
+          </main>
+        </section>
+
+        <section id="page-channels" class="page hidden">
+          <div class="page-header">渠道配置（保存改 .env 并重启服务）</div>
+          <div class="card">
+            <div class="row">
+              <button type="button" class="btn btn-primary" id="channelsSaveBtn">保存并重启服务</button>
+            </div>
+            <div id="channelsError" class="error-box hidden"></div>
+
+            <div style="margin-top:1rem;">
+              <div style="font-weight:700;margin-bottom:0.5rem;">Telegram 配置</div>
+              <div class="muted" style="font-size:0.75rem;margin-bottom:0.75rem;">
+                适用于本地 Long Polling（不需要域名）；如已部署 Webhook，请在 iFlow/Telegram 侧确保 webhook 指向
+                <code style="display:inline;">/channels/telegram</code>。
+              </div>
+
+              <div style="margin-bottom:0.75rem;">
+                <div class="muted" style="margin-bottom:0.25rem;">Bot Token</div>
+                <input id="telegramBotToken" type="text" style="width:100%;" autocomplete="off" />
+              </div>
+
+              <div style="margin-bottom:0.75rem;">
+                <div class="muted" style="margin-bottom:0.25rem;">允许的用户 ID（逗号分隔 / * 或 ALL）</div>
+                <input id="telegramAllowFrom" type="text" style="width:100%;" autocomplete="off" />
+              </div>
+
+              <div style="margin-bottom:0.75rem;">
+                <label class="muted" style="display:flex;align-items:center;gap:0.5rem;">
+                  <input id="telegramUseWebhook" type="checkbox" />
+                  使用 Webhook（true/false）
+                </label>
+              </div>
+
+              <div style="margin-bottom:0.75rem;">
+                <div class="muted" style="margin-bottom:0.25rem;">请求代理（可选，如 http://127.0.0.1:7890）</div>
+                <input id="telegramProxy" type="text" style="width:100%;" autocomplete="off" />
+              </div>
+
+              <div style="margin-bottom:0.5rem;">
+                <div class="muted" style="margin-bottom:0.25rem;">Telegram API 超时（秒）</div>
+                <input id="telegramTimeout" type="number" step="1" style="width:100%;" />
+              </div>
+            </div>
+
+            <div style="margin-top:1.25rem;">
+              <div style="font-weight:700;margin-bottom:0.5rem;">QQ 配置</div>
+
+              <div style="margin-bottom:0.75rem;">
+                <div class="muted" style="margin-bottom:0.25rem;">AppID</div>
+                <input id="qqAppId" type="text" style="width:100%;" autocomplete="off" />
+              </div>
+
+              <div style="margin-bottom:0.75rem;">
+                <div class="muted" style="margin-bottom:0.25rem;">AppSecret</div>
+                <input id="qqAppSecret" type="text" style="width:100%;" autocomplete="off" />
+              </div>
+
+              <div style="margin-bottom:0.25rem;">
+                <label class="muted" style="display:flex;align-items:center;gap:0.5rem;">
+                  <input id="qqSandbox" type="checkbox" />
+                  使用沙盒（Sandbox）
+                </label>
+              </div>
+
+              <div class="muted" style="margin-top:0.75rem;font-size:0.75rem;">
+                QQ 机器人平台：
+                <a href="https://q.qq.com/#/apps" target="_blank" rel="noreferrer">https://q.qq.com/#/apps</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="page-skills" class="page hidden">
+          <div class="page-header">Skills 管理（Global）</div>
+          <div class="card">
+            <div class="row">
+              <button type="button" class="btn btn-secondary" id="skillsReloadBtn">刷新列表</button>
+              <button type="button" class="btn btn-primary" id="skillsSaveBtn">删除所选（并重启 iFlow）</button>
+            </div>
+            <div id="skillsError" class="error-box hidden"></div>
+            <div id="skillsList" class="list"></div>
+          </div>
+        </section>
+
+        <section id="page-mcp" class="page hidden">
+          <div class="page-header">MCP 管理（Global）</div>
+          <div class="card">
+            <div class="row">
+              <button type="button" class="btn btn-secondary" id="mcpReloadBtn">刷新列表</button>
+              <button type="button" class="btn btn-primary" id="mcpSaveBtn">删除所选（并重启 iFlow）</button>
+            </div>
+            <div id="mcpError" class="error-box hidden"></div>
+            <div id="mcpList" class="list"></div>
+            <div class="muted" style="margin-top:0.75rem;font-size:0.75rem;">iflow mcp list 原始输出（用于判断是否生效）</div>
+            <pre id="mcpRaw" class="raw-pre"></pre>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import threading
 
 from app.services.chat_service import (
@@ -169,7 +170,9 @@ def start_qq_bot_in_background() -> None:
                 logger.exception("QQ direct 消息处理异常: %s", e)
 
     def _thread_main() -> None:
-        # 为 qq-botpy 线程创建并设置事件循环，避免 RuntimeError: no current event loop
+        # 必须在 new_event_loop 之前：否则 Windows 默认 ProactorEventLoop，aiohttp/aiodns 会报错
+        if sys.platform == "win32":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)
