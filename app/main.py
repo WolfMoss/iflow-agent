@@ -13,6 +13,7 @@ from core.config import settings
 from core.iflow_runner import start_iflow_process, stop_iflow_process
 from app.routes import chat, health, telegram_webhook
 from app.routes.telegram_webhook import run_telegram_long_polling
+from channels.qq import start_qq_bot_in_background
 
 app = FastAPI(
     title="iFlow Agent Gateway",
@@ -66,6 +67,8 @@ async def startup() -> None:
         await asyncio.sleep(2)
     if settings.telegram_enabled() and not settings.telegram_use_webhook:
         asyncio.create_task(run_telegram_long_polling())
+    if settings.qq_enabled():
+        start_qq_bot_in_background()
 
 
 @app.on_event("shutdown")

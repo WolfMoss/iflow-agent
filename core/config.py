@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # 连接 Telegram API 的超时秒数（含 TLS），网络受限时可适当调大
     telegram_timeout: float = 60.0
 
+    # QQ 机器人（腾讯官方 botpy，可选）
+    qq_app_id: str = ""
+    qq_app_secret: str = ""
+    qq_sandbox: bool = True
+
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token.strip())
 
@@ -63,6 +68,9 @@ class Settings(BaseSettings):
         """默认工作目录：用户目录下与 iflow_workspace_dir_name 同名的目录（绝对路径）。"""
         path = Path.home() / self.iflow_workspace_dir_name.strip() or ".iflowagentworkspace"
         return str(path.resolve())
+
+    def qq_enabled(self) -> bool:
+        return bool(self.qq_app_id.strip() and self.qq_app_secret.strip())
 
 
 settings = Settings()
