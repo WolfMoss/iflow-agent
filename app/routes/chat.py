@@ -82,6 +82,9 @@ async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
             message=body.message,
             session_id=info.session_id,
             cwd=cwd,
+            trace_channel=body.channel,
+            trace_channel_user_id=body.channel_user_id,
+            trace_channel_session_id=body.channel_session_id or body.session_id or "",
         ):
             yield format_event_for_sse(event)
 

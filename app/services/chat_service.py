@@ -7,6 +7,7 @@ import uuid
 from typing import AsyncIterator
 
 from core.iflow_bridge import stream_chat
+from core.message_trace import log_inbound
 from core.session import SessionInfo, SessionStore, get_session_store
 from core.config import settings
 
@@ -80,8 +81,22 @@ async def stream_reply(
     session_id: str | None = None,
     timeout: float | None = None,
     cwd: str | None = None,
+    *,
+    trace_channel: str | None = None,
+    trace_channel_user_id: str | None = None,
+    trace_channel_session_id: str | None = None,
 ) -> AsyncIterator[dict]:
-    """发送消息并流式返回事件。cwd 可选，指定本次请求的 iFlow 工作目录。"""
+    """发送消息并流式返回事件。cwd 可选，指定本次请求的 iFlow 工作目录。
+
+    传入 trace_* 时在首包前打印入站文案（与渠道日志对齐）。
+    """
+    if trace_channel is not None:
+        log_inbound(
+            trace_channel,
+            trace_channel_user_id or "",
+            trace_channel_session_id or "",
+            message,
+        )
     async for event in stream_chat(
         message=message,
         session_id=session_id,

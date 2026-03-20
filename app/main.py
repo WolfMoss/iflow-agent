@@ -50,6 +50,9 @@ def _configure_logging() -> None:
     )
     # Uvicorn 可能已提前配置日志；手动确保根 logger 级别生效
     logging.getLogger().setLevel(level)
+    # Telegram Long Polling 等会高频请求 api.telegram.org，默认 INFO 会刷屏
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def _ensure_default_workspace() -> None:

@@ -16,6 +16,13 @@ from iflow_sdk import (
 )
 
 from core.config import settings
+from core.message_trace import (
+    log_iflow_assistant_complete,
+    log_iflow_error,
+    log_iflow_plan,
+    log_iflow_task_finish,
+    log_iflow_tool,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +41,7 @@ def _options(
     if cwd and cwd.strip():
         kwargs["cwd"] = cwd.strip()
     opts = IFlowOptions(**kwargs)
-    logger.info("IFlowOptions: cwd=%s, session_id=%s", opts.cwd, opts.session_id)
+    logger.debug("IFlowOptions: cwd=%s, session_id=%s", opts.cwd, opts.session_id)
     return opts
 
 
@@ -50,6 +57,7 @@ async def stream_chat(
     cwd 可指定本次对话的工作目录，不传则使用 iFlow 默认（进程当前目录）。
     """
     options = _options(session_id=session_id, timeout=timeout, cwd=cwd)
+    assistant_parts: list[str] = []
     try:
         async with IFlowClient(options) as client:
             await client.send_message(message)
@@ -61,18 +69,24 @@ async def stream_chat(
                         "text": text,
                         "agent_id": getattr(msg, "agent_id", None),
                     }
-                    logger.debug("iflow event: assistant_chunk len=%s", len(text))
+                    if text:
+                        assistant_parts.append(text)
                     yield event
                 elif isinstance(msg, ToolCallMessage):
                     status = str(getattr(msg, "status", ""))
                     tool_name = getattr(msg, "tool_name", None)
+                    aid = (
+                        getattr(msg.agent_info, "agent_id", None)
+                        if getattr(msg, "agent_info", None)
+                        else None
+                    )
                     event = {
                         "type": "tool_call",
                         "status": status,
                         "tool_name": tool_name,
-                        "agent_id": getattr(msg.agent_info, "agent_id", None) if getattr(msg, "agent_info", None) else None,
+                        "agent_id": aid,
                     }
-                    logger.info("iflow event: tool_call tool_name=%s status=%s", tool_name, status)
+                    log_iflow_tool(tool_name, status, aid)
                     yield event
                 elif isinstance(msg, PlanMessage):
                     entries = [
@@ -84,17 +98,20 @@ async def stream_chat(
                         for e in getattr(msg, "entries", [])
                     ]
                     event = {"type": "plan", "entries": entries}
-                    logger.info("iflow event: plan entries=%s", len(entries))
+                    log_iflow_plan(len(entries))
                     yield event
                 elif isinstance(msg, TaskFinishMessage):
                     stop_reason = str(getattr(msg, "stop_reason", ""))
                     event = {"type": "task_finish", "stop_reason": stop_reason}
-                    logger.info("iflow event: task_finish stop_reason=%s", stop_reason)
+                    log_iflow_assistant_complete(session_id, "".join(assistant_parts))
+                    log_iflow_task_finish(stop_reason)
                     yield event
                     return
     except Exception as e:
         logger.exception("iflow stream_chat error")
-        logger.info("iflow event: error message=%s", str(e))
+        if assistant_parts:
+            log_iflow_assistant_complete(session_id, "".join(assistant_parts))
+        log_iflow_error(str(e))
         yield {"type": "error", "message": str(e)}
 
 

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.services.chat_service import ensure_new_session, ensure_session, is_new_session_command, stream_reply
+from core.message_trace import log_inbound
 from channels.telegram import TelegramChannelAdapter, get_updates
 from core.config import settings
 
@@ -23,6 +24,12 @@ _telegram_adapter = TelegramChannelAdapter()
 async def _handle_telegram_event(event: Any) -> None:
     """后台：确保会话、流式回复、通过 Telegram 适配器回发。识别 /new 则新建会话并回复提示。"""
     try:
+        log_inbound(
+            event.channel,
+            event.channel_user_id,
+            event.channel_session_id,
+            event.message,
+        )
         if is_new_session_command(event.message):
             info = await ensure_new_session(
                 channel=event.channel,

@@ -22,6 +22,7 @@ from app.services.chat_service import (
     stream_reply,
 )
 from core.config import settings
+from core.message_trace import log_inbound
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,7 @@ def start_qq_bot_in_background() -> None:
             channel_session_id: str,
         ) -> str:
             text = _clean_content(raw_text)
+            log_inbound("qq", channel_user_id, channel_session_id, text or "(空消息)")
             if is_new_session_command(text):
                 info = await ensure_new_session(
                     channel="qq",
